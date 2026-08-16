@@ -10,10 +10,6 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/rs/zerolog/log"
-	"github.com/urfave/cli/v2"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
-
 	"github.com/ARTI7876/worker-service/internal/app/config"
 	"github.com/ARTI7876/worker-service/internal/app/processor"
 	rprocessor "github.com/ARTI7876/worker-service/internal/app/processor/http"
@@ -22,6 +18,9 @@ import (
 	"github.com/ARTI7876/worker-service/internal/pkg/broker"
 	"github.com/ARTI7876/worker-service/internal/pkg/constant"
 	"github.com/ARTI7876/worker-service/internal/pkg/http/httph"
+	"github.com/rs/zerolog/log"
+	"github.com/urfave/cli/v2"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 )
 
 // Builder — структура для сборки зависимостей приложения.

@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/urfave/cli/v2"
-
 	"github.com/ARTI7876/worker-service/cmd"
 	msentry "github.com/ARTI7876/worker-service/internal/app/monitor/sentry"
 	"github.com/ARTI7876/worker-service/internal/pkg/constant"
+	"github.com/urfave/cli/v2"
 )
 
 func main() {

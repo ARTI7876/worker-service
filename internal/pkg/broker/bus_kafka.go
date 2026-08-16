@@ -7,11 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ARTI7876/worker-service/internal/pkg/broker/codec"
 	"github.com/IBM/sarama"
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
-
-	"github.com/ARTI7876/worker-service/internal/pkg/broker/codec"
 )
 
 const (

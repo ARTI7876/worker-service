@@ -3,15 +3,14 @@ package config
 import (
 	"io"
 
-	"github.com/joho/godotenv"
-	"github.com/kelseyhightower/envconfig"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
-
 	"github.com/ARTI7876/worker-service/internal/app/config/section"
 	msentry "github.com/ARTI7876/worker-service/internal/app/monitor/sentry"
 	mtracelog "github.com/ARTI7876/worker-service/internal/app/monitor/tracelog"
 	"github.com/ARTI7876/worker-service/internal/pkg/constant"
+	"github.com/joho/godotenv"
+	"github.com/kelseyhightower/envconfig"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 type (

@@ -4,12 +4,11 @@ import (
 	"io"
 	"time"
 
+	"github.com/ARTI7876/worker-service/internal/app/config/section"
 	sentryGo "github.com/getsentry/sentry-go"
 	sentryzerolog "github.com/getsentry/sentry-go/zerolog"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-
-	"github.com/ARTI7876/worker-service/internal/app/config/section"
 )
 
 const flushTimeout = 5 * time.Second
