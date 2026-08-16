@@ -11,11 +11,15 @@ import (
 	"syscall"
 
 	"github.com/ARTI7876/worker-service/internal/app/config"
+	"github.com/ARTI7876/worker-service/internal/app/entity"
+	eorder "github.com/ARTI7876/worker-service/internal/app/handler/event/order"
 	"github.com/ARTI7876/worker-service/internal/app/processor"
+	eprocessor "github.com/ARTI7876/worker-service/internal/app/processor/event"
 	rprocessor "github.com/ARTI7876/worker-service/internal/app/processor/http"
 	mmonitor "github.com/ARTI7876/worker-service/internal/app/processor/monitor"
 	"github.com/ARTI7876/worker-service/internal/app/util"
 	"github.com/ARTI7876/worker-service/internal/pkg/broker"
+	"github.com/ARTI7876/worker-service/internal/pkg/broker/codec"
 	"github.com/ARTI7876/worker-service/internal/pkg/constant"
 	"github.com/ARTI7876/worker-service/internal/pkg/http/httph"
 	"github.com/rs/zerolog/log"
@@ -39,6 +43,9 @@ type Builder struct {
 
 	// Kafka-клиент (общий producer + фабрика consumer groups)
 	kafkaClient *broker.KafkaClient
+
+	// Шина события order.created (consumer)
+	busOrderCreated broker.Bus[entity.EventOrderCreated]
 
 	// TODO: добавить зависимости по мере появления (repositories, services, handlers, monitors).
 }
@@ -100,7 +107,6 @@ func (b *Builder) buildConfig(args config.LoadArgs, injectors []func(c *config.C
 ////////////////////////////////////////////////////////////////////////////////
 
 // BuildBrokerKafka создаёт общий Kafka-клиент и регистрирует его закрытие на shutdown.
-// Шину под конкретное событие (broker.NewBus[Event]) создавайте уже в сервисе.
 func (b *Builder) BuildBrokerKafka() {
 	b.exec(func(b *Builder) {
 		cfg := config.Root.Broker.Kafka
@@ -120,6 +126,40 @@ func (b *Builder) BuildBrokerKafka() {
 			processor.WatchForShutdown(ctx, wg, util.CloserFunc(client.Close))
 		}))
 	})
+}
+
+// BuildConsumerOrderCreated собирает consumer для события order.created.
+func (b *Builder) BuildConsumerOrderCreated() {
+	b.exec(func(b *Builder) {
+		cfg := config.Root.Broker.Kafka
+
+		topic := cfg.ModelOrder.Created.Topic
+		group := broker.Coalesce(
+			cfg.ModelOrder.Created.ConsumerGroup,
+			cfg.ConsumerGroup,
+		)
+
+		busOrderCreated, err := broker.NewBus[entity.EventOrderCreated](
+			b.kafkaClient,
+			codec.NewCodecJson[entity.EventOrderCreated](),
+			topic,
+			group,
+		)
+		if err != nil {
+			b.err = fmt.Errorf("init order.created bus: %w", err)
+			return
+		}
+
+		b.busOrderCreated = busOrderCreated
+
+		handler := eorder.NewHandler()
+		proc := eprocessor.NewOrderCreatedEventsCatcher(
+			handler,
+			busOrderCreated,
+		)
+
+		b.processors = append(b.processors, proc)
+	}, b.kafkaClient)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
