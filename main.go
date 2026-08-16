@@ -14,7 +14,7 @@ func main() {
 	app := &cli.App{
 		Name:    constant.AppName,
 		Version: constant.Version,
-		Usage:   "MoM Boilerplate V2 — шаблон Go сервиса",
+		Usage:   "Worker Service — потребитель событий order.created",
 		Commands: []*cli.Command{
 			cmd.WebServer(),
 		},
