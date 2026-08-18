@@ -17,6 +17,7 @@ func main() {
 		Usage:   "Worker Service — потребитель событий order.created",
 		Commands: []*cli.Command{
 			cmd.WebServer(),
+			cmd.SubscribeOrderCreated(),
 		},
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
