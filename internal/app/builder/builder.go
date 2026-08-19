@@ -10,6 +10,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/ARTI7876/worker-service/internal/app/client/fixer"
 	"github.com/ARTI7876/worker-service/internal/app/config"
 	"github.com/ARTI7876/worker-service/internal/app/entity"
 	eorder "github.com/ARTI7876/worker-service/internal/app/handler/event/order"
@@ -17,7 +18,11 @@ import (
 	eprocessor "github.com/ARTI7876/worker-service/internal/app/processor/event"
 	rprocessor "github.com/ARTI7876/worker-service/internal/app/processor/http"
 	mmonitor "github.com/ARTI7876/worker-service/internal/app/processor/monitor"
+	"github.com/ARTI7876/worker-service/internal/app/repository"
 	rcredis "github.com/ARTI7876/worker-service/internal/app/repository/conn/redis"
+	rcurrency "github.com/ARTI7876/worker-service/internal/app/repository/currency"
+	"github.com/ARTI7876/worker-service/internal/app/service"
+	scurrency "github.com/ARTI7876/worker-service/internal/app/service/currency"
 	"github.com/ARTI7876/worker-service/internal/app/util"
 	"github.com/ARTI7876/worker-service/internal/pkg/broker"
 	"github.com/ARTI7876/worker-service/internal/pkg/broker/codec"
@@ -50,6 +55,15 @@ type Builder struct {
 
 	// Подключения
 	connRedis *rcredis.Client
+
+	// Внешние клиенты
+	clientFixer *fixer.Client
+
+	// Репозитории
+	repoCurrencyRate repository.CurrencyRate
+
+	// Сервисы
+	currencyService service.Currency
 
 	// TODO: добавить зависимости по мере появления (repositories, services, handlers, monitors).
 }
@@ -124,6 +138,33 @@ func (b *Builder) BuildConnRedis() {
 
 		b.connRedis = conn
 	})
+}
+
+// BuildClientFixer создаёт HTTP-клиент Fixer API (курсы валют).
+func (b *Builder) BuildClientFixer() {
+	b.exec(func(b *Builder) {
+		b.clientFixer = fixer.NewClient(config.Root.Client.Fixer)
+	})
+}
+
+// BuildRepoCurrencyRate создаёт Redis-кэш курсов валют.
+func (b *Builder) BuildRepoCurrencyRate() {
+	b.exec(func(b *Builder) {
+		b.repoCurrencyRate = rcurrency.NewRepoFromRedis(
+			b.connRedis.Client,
+			config.Root.Client.Fixer.CacheTTL,
+		)
+	}, b.connRedis)
+}
+
+// BuildServiceCurrency собирает сервис курсов валют (cache-aside: Redis -> Fixer).
+func (b *Builder) BuildServiceCurrency() {
+	b.exec(func(b *Builder) {
+		b.currencyService = scurrency.NewService(
+			b.clientFixer,
+			b.repoCurrencyRate,
+		)
+	}, b.clientFixer, b.repoCurrencyRate)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
