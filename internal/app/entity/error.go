@@ -1,6 +1,9 @@
 package entity
 
-import "net/http"
+import (
+	"errors"
+	"net/http"
+)
 
 type ErrorKind string
 
@@ -66,3 +69,13 @@ var (
 	ErrForbidden     = NewAppError(KindForbidden, "forbidden")
 	ErrUnauthorized  = NewAppError(KindUnauthorized, "unauthorized")
 )
+
+var (
+	ErrFixerInvalidApiKey     = errors.New("fixer: invalid api key")
+	ErrFixerRateLimitExceeded = errors.New("fixer: rate limit exceeded")
+	ErrFixerUnavailable       = errors.New("fixer: service unavailable")
+	ErrFixerInvalidResponse   = errors.New("fixer: invalid response")
+	ErrFixerCurrencyNotFound  = errors.New("fixer: currency not found")
+)
+
+var ErrRateNotFound = errors.New("rate not found in cache")
