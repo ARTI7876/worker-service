@@ -2,18 +2,30 @@ package eorder
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ARTI7876/worker-service/internal/app/entity"
 	eventhandler "github.com/ARTI7876/worker-service/internal/app/handler/event"
+	"github.com/ARTI7876/worker-service/internal/app/service"
 	"github.com/ARTI7876/worker-service/internal/pkg/broker"
 	"github.com/rs/zerolog/log"
 )
 
-type handler struct{}
+type handler struct {
+	delivery service.Delivery
+	bus      broker.Bus[entity.EventOrderDeliveryCalculated]
+}
 
-func NewHandler() eventhandler.OrderCreated {
-	return &handler{}
+func NewHandler(
+	delivery service.Delivery,
+	bus broker.Bus[entity.EventOrderDeliveryCalculated],
+) eventhandler.OrderCreated {
+	return &handler{
+		delivery: delivery,
+		bus:      bus,
+	}
 }
 
 func (h *handler) CallbackOrderCreated(
@@ -31,6 +43,38 @@ func (h *handler) CallbackOrderCreated(
 			fmt.Errorf("order.created: empty order_guid"),
 		)
 	}
+
+	deliveryPrice, err := h.delivery.Calculate(ctx, ev.Currency)
+	if err != nil {
+		err = fmt.Errorf("calculate delivery for %s: %w", ev.OrderGUID, err)
+
+		if errors.Is(err, entity.ErrFixerCurrencyNotFound) {
+			return broker.NotCriticalError(err)
+		}
+
+		return err
+	}
+
+	out := entity.EventOrderDeliveryCalculated{
+		OrderGUID:     ev.OrderGUID,
+		DeliveryPrice: deliveryPrice,
+		Currency:      ev.Currency,
+		CalculatedAt:  time.Now().UTC().Format(time.RFC3339),
+	}
+
+	if err := h.bus.Send(
+		ctx,
+		&out,
+		entity.BrokerHeaderOrderDeliveryCalculatedType(),
+		entity.BrokerHeaderOrderDeliveryCalculatedEventID(),
+	); err != nil {
+		return fmt.Errorf("publish order.delivery.calculated: %w", err)
+	}
+
+	log.Info().
+		Ctx(ctx).
+		EmbedObject(out).
+		Msg("Опубликовано событие order.delivery.calculated")
 
 	return nil
 }

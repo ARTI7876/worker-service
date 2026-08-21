@@ -23,6 +23,7 @@ import (
 	rcurrency "github.com/ARTI7876/worker-service/internal/app/repository/currency"
 	"github.com/ARTI7876/worker-service/internal/app/service"
 	scurrency "github.com/ARTI7876/worker-service/internal/app/service/currency"
+	sdelivery "github.com/ARTI7876/worker-service/internal/app/service/delivery"
 	"github.com/ARTI7876/worker-service/internal/app/util"
 	"github.com/ARTI7876/worker-service/internal/pkg/broker"
 	"github.com/ARTI7876/worker-service/internal/pkg/broker/codec"
@@ -53,6 +54,9 @@ type Builder struct {
 	// Шина события order.created (consumer)
 	busOrderCreated broker.Bus[entity.EventOrderCreated]
 
+	// Шина события order.delivery.calculated (producer)
+	busOrderDeliveryCalculated broker.Bus[entity.EventOrderDeliveryCalculated]
+
 	// Подключения
 	connRedis *rcredis.Client
 
@@ -64,6 +68,7 @@ type Builder struct {
 
 	// Сервисы
 	currencyService service.Currency
+	deliveryService service.Delivery
 
 	// TODO: добавить зависимости по мере появления (repositories, services, handlers, monitors).
 }
@@ -167,6 +172,13 @@ func (b *Builder) BuildServiceCurrency() {
 	}, b.clientFixer, b.repoCurrencyRate)
 }
 
+// BuildServiceDelivery собирает сервис расчёта доставки (база 10 EUR -> валюта заказа).
+func (b *Builder) BuildServiceDelivery() {
+	b.exec(func(b *Builder) {
+		b.deliveryService = sdelivery.NewService(b.currencyService)
+	}, b.currencyService)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 ///// BROKER ///////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,6 +205,26 @@ func (b *Builder) BuildBrokerKafka() {
 	})
 }
 
+// BuildBusOrderDeliveryCalculated создаёт publish-шину топика order.delivery.calculated.
+func (b *Builder) BuildBusOrderDeliveryCalculated() {
+	b.exec(func(b *Builder) {
+		cfg := config.Root.Broker.Kafka
+
+		busOrderDeliveryCalculated, err := broker.NewBus[entity.EventOrderDeliveryCalculated](
+			b.kafkaClient,
+			codec.NewCodecJson[entity.EventOrderDeliveryCalculated](),
+			cfg.ModelOrder.DeliveryCalculated.Topic,
+			cfg.ConsumerGroup,
+		)
+		if err != nil {
+			b.err = fmt.Errorf("init order.delivery.calculated bus: %w", err)
+			return
+		}
+
+		b.busOrderDeliveryCalculated = busOrderDeliveryCalculated
+	}, b.kafkaClient)
+}
+
 // BuildConsumerOrderCreated собирает consumer для события order.created.
 func (b *Builder) BuildConsumerOrderCreated() {
 	b.exec(func(b *Builder) {
@@ -217,14 +249,17 @@ func (b *Builder) BuildConsumerOrderCreated() {
 
 		b.busOrderCreated = busOrderCreated
 
-		handler := eorder.NewHandler()
+		handler := eorder.NewHandler(
+			b.deliveryService,
+			b.busOrderDeliveryCalculated,
+		)
 		proc := eprocessor.NewOrderCreatedEventsCatcher(
 			handler,
 			busOrderCreated,
 		)
 
 		b.processors = append(b.processors, proc)
-	}, b.kafkaClient)
+	}, b.kafkaClient, b.deliveryService, b.busOrderDeliveryCalculated)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
